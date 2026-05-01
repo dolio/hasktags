@@ -5,47 +5,71 @@
 -- yes, this is still specific to hasktags :(
 module Tags where
 import           Control.Monad       (when)
-import           Data.Char           (isSpace)
+import           Data.Char           (isSpace, isNumber, isAlpha, isAlphaNum)
 import           Data.Data           (Data, Typeable)
 import           Data.List           (sortBy, intercalate)
+import           Data.Maybe          (fromMaybe)
 import           Lens.Micro.Platform
 import           System.IO           (Handle, hPutStr, hPutStrLn)
 
 -- my words is mainly copied from Data.List.
 -- difference abc::def is recognized as three words
 -- `abc` is recognized as "`" "abc" "`"
-mywords :: Bool -> String -> [String]
-mywords spaced s =  case rest of
-                        ')':xs -> (blanks' ++ ")") : mywords spaced xs
-                        "" -> []
-                        '{':'-':xs -> (blanks' ++ "{-") : mywords spaced xs
-                        '-':'}':xs -> (blanks' ++ "-}") : mywords spaced xs
-                        '{':xs -> (blanks' ++ "{") : mywords spaced xs
-                        '(':xs -> (blanks' ++ "(") : mywords spaced xs
-                        '`':xs -> (blanks' ++ "`") : mywords spaced xs
-                        '=':'>':xs -> (blanks' ++ "=>") : mywords spaced xs
-                        '=':xs -> (blanks' ++ "=") : mywords spaced xs
-                        ',':xs -> (blanks' ++ ",") : mywords spaced xs
-                        ':':':':xs -> (blanks' ++ "::") : mywords spaced xs
-                        s' -> (blanks' ++ w) : mywords spaced s''
-                              where (w, s'') = myBreak s'
-                                    myBreak [] = ([],[])
-                                    myBreak (':':':':xs) = ([], "::"++xs)
-                                    myBreak (')':xs) = ([],')':xs)
-                                    myBreak ('(':xs) = ([],'(':xs)
-                                    myBreak ('`':xs) = ([],'`':xs)
-                                    myBreak ('=':xs) = ([],'=':xs)
-                                    myBreak (',':xs) = ([],',':xs)
-                                    myBreak xss@(x:xs)
-                                      | isSpace x
-                                        = if spaced
-                                          then ([], xss)
-                                          else ([], dropWhile isSpace xss)
-                                      | otherwise = let (a,b) = myBreak xs
-                                                    in  (x:a,b)
-                    where blanks' = if spaced then blanks else ""
-                          (blanks, rest) = span {-partain:Char.-}isSpace s
 
+-- special cases for tokens from non-uniform character classes
+special :: String -> Maybe (String, String)
+special ('{':'-':'#':s) = Just ("{-#", s)
+special ('#':'-':'}':s) = Just ("#-}", s)
+special ('{':'-':s) = Just ("{-", s)
+special ('-':'}':s) = Just ("-}", s)
+special _ = Nothing
+
+-- tokenizes a string based on rough syntactic categories
+mywords :: Bool -> String -> [String]
+mywords spaced = go . preTrim where
+  preTrim = span isSpace
+
+  go (blanks, []) = []
+  go (blanks, s)
+    | blanks <- if spaced then blanks else ""
+    , (t, s) <- fromMaybe (tokspan s) (special s)
+    = (blanks ++ t) : go (preTrim s) where
+
+-- beginning word characters
+isWord :: Char -> Bool
+isWord c = isAlpha c || c == '_'
+
+-- continuation characters for words
+isWord' :: Char -> Bool
+isWord' c = isAlphaNum c || c == '_' || c == '#'
+
+-- operator characters
+isOper :: Char -> Bool
+isOper c = not (isWord c || isSpace c || isPunc c)
+
+-- punctuation characters
+isPunc :: Char -> Bool
+isPunc c = any (c ==) "()[]{},`"
+
+-- Spans a single token. Punctuation is special cased to yield single
+-- tokens (compound tokens involving these characters are assumed to
+-- have already been handled). Otherwise we grab runs of characters
+-- matching the first. Leading spaces are also assumed to have been
+-- removed already.
+tokspan :: String -> (String, String)
+tokspan [] = ([], [])
+tokspan ('(':cs) = ("(", cs)
+tokspan (')':cs) = (")", cs)
+tokspan ('{':cs) = ("{", cs)
+tokspan ('}':cs) = ("}", cs)
+tokspan ('[':cs) = ("[", cs)
+tokspan (']':cs) = ("]", cs)
+tokspan ('`':cs) = ("`", cs)
+tokspan (',':cs) = (",", cs)
+tokspan s@(c:_)
+  | isWord c = span isWord' s
+  | isNumber c = span isNumber s
+  | otherwise = span isOper s
 
 type FileName = String
 

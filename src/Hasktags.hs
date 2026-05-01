@@ -240,7 +240,7 @@ findThingsInBS filename bs = do
                         debugStep "stripNonHaskellLines" $ stripNonHaskellLines
                       $ debugStep "stripslcomments" $ stripslcomments
                       $ debugStep "splitByNL" $ splitByNL Nothing
-                      $ debugStep "stripblockcomments pipe" $ stripblockcomments
+                      $ debugStep "stripblockcomments pipe" $ stripblockcomments 0
                       $ concat
                       $ zipWith3 (withline filename)
                                  (map
@@ -314,22 +314,17 @@ stripslcomments = let f (NewLine _ : Token ('-':'-':_) _ : _) = False
                       isCmt _                                 = False
                   in map (takeWhile (not . isCmt)) . filter f
 
-stripblockcomments :: [Token] -> [Token]
-stripblockcomments (Token "{-" pos : xs) =
-  trace_ "{- found at " (show pos) $
-  afterblockcomend xs
-stripblockcomments (x:xs) = x:stripblockcomments xs
-stripblockcomments [] = []
-
-afterblockcomend :: [Token] -> [Token]
-afterblockcomend (t@(Token _ pos):xs)
- | contains "-}" (tokenString t) =
-   trace_ "-} found at " (show pos) $
-   stripblockcomments xs
- | otherwise           = afterblockcomend xs
-afterblockcomend [] = []
-afterblockcomend (_:xs) = afterblockcomend xs
-
+stripblockcomments :: Int -> [Token] -> [Token]
+stripblockcomments nest (t:ts)
+  | Token str pos <- t, "{-" `isPrefixOf` str
+  = trace_ (str ++ " found at") (show pos)
+  $ stripblockcomments (nest+1) ts
+  | nest <= 0 = t:stripblockcomments nest ts
+  | Token str pos <- t, "-}" `isSuffixOf` str
+  = trace_ (str ++ " found at ") (show pos)
+  $ stripblockcomments (max 0 (nest-1)) ts
+  | otherwise = stripblockcomments nest ts
+stripblockcomments _ [] = []
 
 -- does one string contain another string
 
