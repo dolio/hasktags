@@ -563,7 +563,7 @@ extractOperator (Token "(" _ : ts) = (names, post)
   (pre, _:post) = break ((== ")") . tokenString) ts
   flatNames = foldr ((++) . tokenString) "" . filter (not . isNewLine Nothing)
   names = case commaSep ts of
-    [only] -> ["(" ++ flatNames ts ++ ")"]
+    [only] -> ["(" ++ flatNames pre ++ ")"]
     tss -> map flatNames tss
 -- impossible
 extractOperator _ = ([], [])
