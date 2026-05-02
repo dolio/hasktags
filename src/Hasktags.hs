@@ -19,7 +19,7 @@ module Hasktags (
 import           Control.Monad              (when)
 import           Control.Arrow              ((***))
 import qualified Data.ByteString.Char8 as BS (ByteString, readFile, unpack)
-import qualified Data.ByteString.UTF8  as BS8 (fromString)
+import qualified Data.ByteString.UTF8  as BS8 (fromString, toString)
 import           Data.Char                  (isSpace)
 import           Data.String                (IsString(..))
 import           Data.List                  (isPrefixOf, isSuffixOf, groupBy,
@@ -197,14 +197,6 @@ findWithCache cache filename = do
           when cache (writeFile cacheFilename (encodeJSON filedata))
           return filedata
 
--- eg Data.Text says that using ByteStrings could be fastest depending on ghc
--- platform and whatnot - so let's keep the hacky BS.readFile >>= BS.unpack
--- usage till there is a problem, still need to match utf-8 chars like this: ⇒
--- to get correct class names, eg MonadBaseControl case (testcase testcases/monad-base-control.hs)
--- so use the same conversion which is applied to files when they got read ..
-utf8_to_char8_hack :: String -> String
-utf8_to_char8_hack = BS.unpack . BS8.fromString
-
 -- Find the definitions in a file
 findThings :: FileName -> IO FileData
 findThings filename =
@@ -212,7 +204,7 @@ findThings filename =
 
 findThingsInBS :: String -> BS.ByteString -> FileData
 findThingsInBS filename bs = do
-        let aslines = lines $ BS.unpack bs
+        let aslines = lines $ BS8.toString bs
 
         let stripNonHaskellLines = let
                   emptyLine = all (all isSpace . tokenString)
@@ -378,7 +370,7 @@ findstuff tokens@(Token "class" _ : xs) _ =
             = case (head'
                   . dropWhile isParenOpen
                   . reverse
-                  . takeWhile ((not . (`elem` ["=>", utf8_to_char8_hack "⇒"])) . tokenString)
+                  . takeWhile ((not . (`elem` ["=>", "⇒"])) . tokenString)
                   . reverse) lst of
               (Just (Token name p)) -> Just $ FoundThing FTClass name p
               _                     -> Nothing
