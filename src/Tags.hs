@@ -41,11 +41,16 @@ isWord c = isAlpha c || c == '_'
 
 -- continuation characters for words
 isWord' :: Char -> Bool
-isWord' c = isAlphaNum c || c == '_' || c == '#'
+isWord' c = isAlphaNum c || c == '_' || c == '#' || c == '\'' || c == '.'
 
 -- operator characters
 isOper :: Char -> Bool
-isOper c = not (isWord c || isSpace c || isPunc c)
+isOper c = not
+   $ isAlphaNum c
+  || c == '\''
+  || c == '"'
+  || isSpace c
+  || isPunc c
 
 -- punctuation characters
 isPunc :: Char -> Bool
@@ -69,7 +74,8 @@ tokspan (',':cs) = (",", cs)
 tokspan s@(c:_)
   | isWord c = span isWord' s
   | isNumber c = span isNumber s
-  | otherwise = span isOper s
+  | isOper c = span isOper s
+  | otherwise = span (not . isSpace) s
 
 type FileName = String
 
