@@ -440,7 +440,8 @@ findInfix x scope
 
 findF :: [Token] -> Scope -> [FoundThing]
 findF ts@(Token "(" p : _) scope =
-    let (names, xs) = extractOperator ts in
+    let (names0, xs) = extractOperator ts
+        names = filter ((/= "()")) names0 in
     [FoundThing (FTFuncImpl scope) name p | name <- names, any (("=" ==) . tokenString) xs]
 findF (Token name p : xs) scope =
     [FoundThing (FTFuncImpl scope) name p | any (("=" ==) . tokenString) xs]

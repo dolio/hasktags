@@ -7,6 +7,7 @@
 -- to be found z
 -- to be found (+)
 -- to be found (-)
+-- not to be found ()
 
 (c, d) = (1, 2)
 
@@ -18,4 +19,4 @@
 
 (_w) = 2
 
-((+), (-)) = (\x y -> x, \x y -> y)
+((+), (-), ()) = (\x y -> x, \x y -> y, ())
