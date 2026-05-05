@@ -20,7 +20,7 @@ import           Control.Monad              (when)
 import           Control.Arrow              ((***))
 import qualified Data.ByteString.Char8 as BS (ByteString, readFile, unpack)
 import qualified Data.ByteString.UTF8  as BS8 (fromString, toString)
-import           Data.Char                  (isSpace)
+import           Data.Char                  (isAlpha, isSpace)
 import           Data.String                (IsString(..))
 import           Data.List                  (isPrefixOf, isSuffixOf, groupBy,
                                              tails, nub)
@@ -557,13 +557,40 @@ commaSep = go True [] where
       | a:as <- acc = (t:a) : as
       | otherwise = [[t]]
 
+-- Breaks a token stream at an appropriate closing paren,
+-- assuming one had just been removed from the input stream.
+-- The closing paren is omitted.
+--
+-- Matching parentheses are kept track of, so breaking
+--
+--   ((+++), (---))
+--
+-- will work correctly.
+parenBreak :: [Token] -> ([Token], [Token])
+parenBreak = go 1 [] where
+  adj t lvl
+    | tokenString t == "(" = lvl+1
+    | tokenString t == ")" = lvl-1
+    | otherwise = lvl
+
+  go lvl acc ts
+    | lvl <= 0   = (reverse $ drop 1 acc, ts)
+    | [] <- ts   = (reverse acc, [])
+    | t:ts <- ts = go (adj t lvl) (t:acc) ts
+
 extractOperator :: [Token] -> ([String], [Token])
 extractOperator (Token "(" _ : ts) = (names, post)
   where
-  (pre, _:post) = break ((== ")") . tokenString) ts
-  flatNames = foldr ((++) . tokenString) "" . filter (not . isNewLine Nothing)
-  names = case commaSep ts of
-    [only] -> ["(" ++ flatNames pre ++ ")"]
+  fixOper s
+    | c:_ <- s, isAlpha c || c == '_' = s
+    | otherwise = "(" ++ s ++ ")"
+
+  (pre, post) = parenBreak ts
+
+  flatNames = foldr ((++) . tokenString) "" . reverse . filter (not . isNewLine Nothing)
+
+  names = case commaSep pre of
+    [only] -> [fixOper $ flatNames only]
     tss -> map flatNames tss
 -- impossible
 extractOperator _ = ([], [])
